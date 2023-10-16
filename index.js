@@ -1,9 +1,7 @@
 const fsPromises = require("fs/promises");
 const { google } = require("googleapis");
-const { parse } = require("node-html-parser");
 const core = require("@actions/core");
 const matter = require("gray-matter");
-const TurndownService = require("turndown");
 
 async function main({ googleDriveFolderId, outputDirectoryPath }) {
   const drive = google.drive({
@@ -32,9 +30,9 @@ async function createDirectory({ outputDirectoryPath }) {
 }
 
 async function exportFile({ drive, fileId }) {
-  const response = await drive.files.export({
+  const response = await drive.files.get({
     fileId,
-    mimeType: "text/html",
+    alt: 'media'
   });
   return response.data;
 }
@@ -42,13 +40,13 @@ async function exportFile({ drive, fileId }) {
 async function exportFiles({ drive, files }) {
   return Promise.all(
     files.map(async (file) => {
-      const html = await exportFile({
+      const content = await exportFile({
         drive,
         fileId: file.id,
       });
       return {
         ...file,
-        html,
+        content,
       };
     })
   );
@@ -59,61 +57,17 @@ async function listFiles({ drive, googleDriveFolderId }) {
     fields: "nextPageToken, files(id, name, createdTime, modifiedTime)",
     orderBy: "modifiedTime desc",
     pageSize: 1000,
-    q: `'${googleDriveFolderId}' in parents and mimeType = 'application/vnd.google-apps.document'`,
+    q: `'${googleDriveFolderId}' in parents and mimeType = 'text/markdown'`,
   });
   return response.data.files;
 }
 
-function convertHtml(html) {
-  const root = parse(html);
-  const bodyElement = root.querySelector("body");
-
-  bodyElement.querySelectorAll("*[style]").forEach((element) => {
-    element.removeAttribute("style");
-  });
-  bodyElement.querySelectorAll("*[id]").forEach((element) => {
-    element.removeAttribute("id");
-  });
-  bodyElement.querySelectorAll("p").forEach((element) => {
-    if (element.innerHTML === "<span></span>") {
-      element.remove();
-    }
-  });
-  bodyElement.querySelectorAll("span").forEach((element) => {
-    element.replaceWith(...element.childNodes);
-  });
-  bodyElement.querySelectorAll("a[href]").forEach((element) => {
-    const href = element.getAttribute("href");
-    if (!href) {
-      return;
-    }
-    try {
-      const url = new URL(href);
-      const q = url.searchParams.get("q");
-      element.setAttribute("href", q);
-    } catch {
-      // Ignore invalid URL in href (e.g. `"#cmnt_ref1"`).
-    }
-  });
-
-  const firstElement = bodyElement.querySelector("*");
-  const title = firstElement.text;
-  firstElement.remove();
-
-  const markdown = new TurndownService().turndown(bodyElement.innerHTML);
-
-  return {
-    body: markdown,
-    title,
-  };
-}
 
 async function writeExportedFiles({ exportedFiles, outputDirectoryPath }) {
   exportedFiles.forEach(async (exportedFile) => {
-    const { body, title } = convertHtml(exportedFile.html);
     await fsPromises.writeFile(
       `${outputDirectoryPath}/${exportedFile.name}.md`,
-      matter.stringify(body, { title })
+      matter.stringify(exportedFile.content)
     );
   });
 }
