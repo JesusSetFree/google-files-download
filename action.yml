@@ -1,4 +1,4 @@
-name: google-docs-to-markdown
+name: google-files-markdown
 description: Custom action to export Google Docs to local file system as Markdown files.
 inputs:
   google_drive_folder_id:
