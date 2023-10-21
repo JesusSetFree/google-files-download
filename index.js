@@ -59,14 +59,17 @@ async function listFiles({ drive, googleDriveFolderId }) {
     pageSize: 1000,
     q: `'${googleDriveFolderId}' in parents and mimeType = 'text/markdown'`,
   });
+  core.info(`Found ${response.data.files.length} files`);
   return response.data.files;
 }
 
 
 async function writeExportedFiles({ exportedFiles, outputDirectoryPath }) {
   exportedFiles.forEach(async (exportedFile) => {
+    const outputFilePath = `${outputDirectoryPath}/${exportedFile.name}.md`;
+    core.info(`Writing file ${outputFilePath}`);
     await fsPromises.writeFile(
-      `${outputDirectoryPath}/${exportedFile.name}.md`,
+      outputFilePath,
       matter.stringify(exportedFile.content)
     );
   });
