@@ -69,7 +69,7 @@ async function listFiles({ drive, googleDriveFolderId }) {
 
 async function writeExportedFiles({ exportedFiles, outputDirectoryPath }) {
   exportedFiles.forEach(async (exportedFile) => {
-    const outputFilePath = `${outputDirectoryPath}/${exportedFile.name}.md`;
+    const outputFilePath = `${outputDirectoryPath}/${exportedFile.name}`;
     core.info(`Writing file ${outputFilePath}`);
     await fsPromises.writeFile(
       outputFilePath,
