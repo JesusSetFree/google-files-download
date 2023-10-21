@@ -11,6 +11,8 @@ async function main({ googleDriveFolderId, outputDirectoryPath }) {
     version: "v3",
   });
 
+  core.info(`Connected to drive ${drive.id}`);
+
   const exportedFiles = await exportFiles({
     drive,
     files: await listFiles({ drive, googleDriveFolderId }),
@@ -53,6 +55,7 @@ async function exportFiles({ drive, files }) {
 }
 
 async function listFiles({ drive, googleDriveFolderId }) {
+  core.info(`About to list files for ${googleDriveFolderId}`);
   const response = await drive.files.list({
     fields: "nextPageToken, files(id, name, createdTime, modifiedTime)",
     orderBy: "modifiedTime desc",
@@ -76,6 +79,6 @@ async function writeExportedFiles({ exportedFiles, outputDirectoryPath }) {
 }
 
 main({
-  googleDriveFolderId: core.getInput("google_drive_folder_id"),
-  outputDirectoryPath: core.getInput("output_directory_path"),
+  googleDriveFolderId:  "1-3SOYsvaELYXertaNlQLaQWf10_m4Sx4",//core.getInput("google_drive_folder_id"),
+  outputDirectoryPath: "output" //core.getInput("output_directory_path"),
 }).catch(core.setFailed);
