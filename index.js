@@ -79,6 +79,6 @@ async function writeExportedFiles({ exportedFiles, outputDirectoryPath }) {
 }
 
 main({
-  googleDriveFolderId:  "1-3SOYsvaELYXertaNlQLaQWf10_m4Sx4",//core.getInput("google_drive_folder_id"),
-  outputDirectoryPath: "output" //core.getInput("output_directory_path"),
+  googleDriveFolderId: core.getInput("google_drive_folder_id"),
+  outputDirectoryPath: core.getInput("output_directory_path"),
 }).catch(core.setFailed);
