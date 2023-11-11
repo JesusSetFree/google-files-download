@@ -1,7 +1,10 @@
 const fsPromises = require("fs/promises");
 const { google } = require("googleapis");
+const { parse } = require("node-html-parser");
 const core = require("@actions/core");
 const matter = require("gray-matter");
+const TurndownService = require("turndown");
+
 
 async function main({ googleDriveFolderId, outputDirectoryPath }) {
   const drive = google.drive({
@@ -15,7 +18,7 @@ async function main({ googleDriveFolderId, outputDirectoryPath }) {
 
   const exportedFiles = await exportFiles({
     drive,
-    files: await listFiles({ drive, googleDriveFolderId }),
+    files: await listFiles({ drive, googleDriveFolderId, directoryTree: [] }),
   });
 
   await createDirectory({ outputDirectoryPath });
@@ -32,9 +35,9 @@ async function createDirectory({ outputDirectoryPath }) {
 }
 
 async function exportFile({ drive, fileId }) {
-  const response = await drive.files.get({
+  const response = await drive.files.export({
     fileId,
-    alt: 'media'
+    mimeType: "text/html",
   });
   return response.data;
 }
@@ -42,38 +45,92 @@ async function exportFile({ drive, fileId }) {
 async function exportFiles({ drive, files }) {
   return Promise.all(
     files.map(async (file) => {
-      const content = await exportFile({
+      const html = await exportFile({
         drive,
         fileId: file.id,
       });
       return {
         ...file,
-        content,
+        html,
       };
     })
   );
 }
 
-async function listFiles({ drive, googleDriveFolderId }) {
-  core.info(`About to list files for ${googleDriveFolderId}`);
+async function listFiles({ drive, googleDriveFolderId, directoryTree }) {
+  core.info(`About to list files and folder for ${googleDriveFolderId}`);
+
   const response = await drive.files.list({
-    fields: "nextPageToken, files(id, name, createdTime, modifiedTime)",
+    fields: "nextPageToken, files(id, name, mimeType, createdTime, modifiedTime)",
     orderBy: "modifiedTime desc",
     pageSize: 1000,
-    q: `'${googleDriveFolderId}' in parents and mimeType = 'text/markdown'`,
+    q: `'${googleDriveFolderId}' in parents and (mimeType = 'application/vnd.google-apps.document' or mimeType = 'application/vnd.google-apps.folder')`,
   });
-  core.info(`Found ${response.data.files.length} files`);
-  return response.data.files;
+  core.info(`Found ${response.data.files.length} files in ${googleDriveFolderId}`);
+
+  const filesAndFolders = response.data.files;
+  const files = []
+  for (const fileOrFolder of filesAndFolders) {
+    if (fileOrFolder.mimeType === 'application/vnd.google-apps.document') {
+      files.push({ ...fileOrFolder, directoryTree })
+    }
+    else {
+      files.push(...await listFiles({ drive, googleDriveFolderId: fileOrFolder.id, directoryTree: [...directoryTree, fileOrFolder.name] }));
+    }
+  }
+  return [...files];
 }
 
+function convertHtml(html) {
+  const root = parse(html);
+  const bodyElement = root.querySelector("body");
+
+  bodyElement.querySelectorAll("*[style]").forEach((element) => {
+    element.removeAttribute("style");
+  });
+  bodyElement.querySelectorAll("*[id]").forEach((element) => {
+    element.removeAttribute("id");
+  });
+  bodyElement.querySelectorAll("p").forEach((element) => {
+    if (element.innerHTML === "<span></span>") {
+      element.remove();
+    }
+  });
+  bodyElement.querySelectorAll("span").forEach((element) => {
+    element.replaceWith(...element.childNodes);
+  });
+  bodyElement.querySelectorAll("a[href]").forEach((element) => {
+    const href = element.getAttribute("href");
+    if (!href) {
+      return;
+    }
+    try {
+      const url = new URL(href);
+      const q = url.searchParams.get("q");
+      element.setAttribute("href", q);
+    } catch {
+      // Ignore invalid URL in href (e.g. `"#cmnt_ref1"`).
+    }
+  });
+
+  const firstElement = bodyElement.querySelector("*");
+  const title = firstElement.text;
+  firstElement.remove();
+
+  const markdown = new TurndownService().turndown(bodyElement.innerHTML);
+
+  return {
+    body: markdown,
+    title,
+  };
+}
 
 async function writeExportedFiles({ exportedFiles, outputDirectoryPath }) {
   exportedFiles.forEach(async (exportedFile) => {
-    const outputFilePath = `${outputDirectoryPath}/${exportedFile.name}`;
-    core.info(`Writing file ${outputFilePath}`);
+    const { body, title } = convertHtml(exportedFile.html);
     await fsPromises.writeFile(
-      outputFilePath,
-      matter.stringify(exportedFile.content)
+      `${outputDirectoryPath}/${exportedFile.name}.md`,
+      matter.stringify(body, { title, tags: exportedFile.directoryTree })
     );
   });
 }
