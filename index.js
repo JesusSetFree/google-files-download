@@ -85,9 +85,9 @@ function convertHtml(html) {
   const root = parse(html);
   const bodyElement = root.querySelector("body");
 
-  bodyElement.querySelectorAll("*[style]").forEach((element) => {
-    element.removeAttribute("style");
-  });
+  // bodyElement.querySelectorAll("*[style]").forEach((element) => {
+  //   element.removeAttribute("style");
+  // });
   bodyElement.querySelectorAll("*[id]").forEach((element) => {
     element.removeAttribute("id");
   });
@@ -117,7 +117,12 @@ function convertHtml(html) {
   const title = firstElement.text;
   firstElement.remove();
 
-  const markdown = new TurndownService().turndown(bodyElement.innerHTML);
+  const markdown = new TurndownService().addRule('keep', {
+    filter: ['img'],
+    replacement: function (content, node) {
+      return node.outerHTML
+    }
+  }).turndown(bodyElement.innerHTML);
 
   return {
     body: markdown,
