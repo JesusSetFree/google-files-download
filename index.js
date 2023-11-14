@@ -96,9 +96,12 @@ function convertHtml(html) {
       element.remove();
     }
   });
-  // bodyElement.querySelectorAll("span").forEach((element) => {
-  //   element.replaceWith(...element.childNodes);
-  // });
+  bodyElement.querySelectorAll("span").forEach((element) => {
+    const styleChunks = element.attributes.style.split(';');
+    var remaining = styleChunks.filter((value) => !value.includes('color') && !value.includes('font-size'));
+    element.setAttribute("style", remaining.join(';'));
+    //element.replaceWith(...element.childNodes);
+  });
   bodyElement.querySelectorAll("a[href]").forEach((element) => {
     const href = element.getAttribute("href");
     if (!href) {
