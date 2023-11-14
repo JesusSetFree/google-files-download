@@ -96,9 +96,9 @@ function convertHtml(html) {
       element.remove();
     }
   });
-  bodyElement.querySelectorAll("span").forEach((element) => {
-    element.replaceWith(...element.childNodes);
-  });
+  // bodyElement.querySelectorAll("span").forEach((element) => {
+  //   element.replaceWith(...element.childNodes);
+  // });
   bodyElement.querySelectorAll("a[href]").forEach((element) => {
     const href = element.getAttribute("href");
     if (!href) {
@@ -118,7 +118,7 @@ function convertHtml(html) {
   firstElement.remove();
 
   const markdown = new TurndownService().addRule('keep', {
-    filter: ['img'],
+    filter: ['img', 'span'],
     replacement: function (content, node) {
       return node.outerHTML
     }
